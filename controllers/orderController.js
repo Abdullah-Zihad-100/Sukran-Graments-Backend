@@ -1,10 +1,29 @@
 const Order = require("../models/Order");
+const Lead = require("../models/Lead"); // 👈 লিড মডেলটি এখানে ইমপোর্ট করা হয়েছে
 
-// অর্ডার করা
+// অর্ডার করা (এবং সাথে সাথে পেন্ডিং লিড ডিলেট করা)
 exports.createOrder = async (req, res) => {
   try {
+    // ১. নতুন অর্ডার তৈরি ও সেভ করা
     const order = new Order(req.body);
     await order.save();
+
+    // ২. অর্ডার সফল হলে ওই কাস্টমারের পেন্ডিং লিডটি ডাটাবেজ থেকে ডিলেট করে দেওয়া
+    // ফ্রন্টএন্ড থেকে 'product' এবং 'phone' পাঠানো হচ্ছে, তাই সেগুলোর সাথে মিলিয়ে লিড ডিলিট করা হবে
+    if (req.body.phone) {
+      const deletedLead = await Lead.findOneAndDelete({
+        phone: req.body.phone,
+        productId: req.body.product, // ফ্রন্টএন্ডের product আইডি
+        status: "Pending",
+      });
+
+      if (deletedLead) {
+        console.log(
+          "🗑️ Pending Lead deleted automatically after successful order!",
+        );
+      }
+    }
+
     res.status(201).json({ message: "অর্ডার সফল হয়েছে ✅", order });
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -38,6 +57,8 @@ exports.updateOrderStatus = async (req, res) => {
     res.status(400).json({ message: err.message });
   }
 };
+
+// অর্ডার ট্র্যাক করা
 exports.trackOrder = async (req, res) => {
   try {
     const { phone, orderId } = req.query;
